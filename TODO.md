@@ -13,7 +13,7 @@
 ## 0. โครงสร้างพื้นฐาน
 - [x] 0.1 ตั้งโปรเจกต์ back (Bun + Hono + Prisma 7) + DB `wi_store` + LINE webhook `/api/line/webhook` (ตรวจลายเซ็น, echo กลับ) — ทดสอบ local ผ่านแล้ว รอ deploy/tunnel เพื่อผูกกับ LINE จริง
 - [x] 0.2 แยกบทบาท: ลูกค้าทักครั้งแรก → ขอเบอร์ → บันทึก; แม่พิมพ์ `admin <เบอร์>` ตรง ADMIN_PHONE → ADMIN (มี `LINE_DRY_RUN=1` + `scripts/send-text.sh` สำหรับทดสอบ local)
-- [ ] 0.3 ตั้งโปรเจกต์ front (Next.js) ต่อ API ของ back
+- [x] 0.3 ตั้งโปรเจกต์ front (Next.js 16 + antd 6 + React Query + NextAuth) login ด้วยเบอร์แม่+รหัสผ่าน
 
 ## 1. สินค้า & สต็อก
 - [x] 1.1 Product master (ชื่อ, ราคา, หน่วย, เปิด/ปิดขาย) — REST API สำหรับเว็บ (หน้าเว็บทำในหมวด 6)
@@ -47,10 +47,10 @@
 - [x] 5.4 ใช้ใน LINE: ลูกค้าพิมพ์ `คูปอง` ดูคูปอง/ยอดสะสม; หลังสั่งมีปุ่ม `ใช้คูปอง <โค้ด>` → หักยอด ส่ง QR ใหม่ (ยอด 0 → ข้ามสลิป รอแม่ยืนยัน); ปฏิเสธออเดอร์ → คืนคูปอง
 
 ## 6. Front (Next.js) — แดชบอร์ดดูสถานการณ์
-- [ ] 6.1 ดูออเดอร์วันนี้ / รอยืนยัน / ยืนยันแล้ว
-- [ ] 6.2 ดูสต็อกคงเหลือรายวัน
-- [ ] 6.3 ดูสถานะร้าน (เปิด/ปิด), โปรที่กำลังจัด
-- [ ] 6.4 ดู log / สถานะบอท (dead bot — webhook ตอบไหม, error ล่าสุด)
+- [x] 6.1 หน้าออเดอร์ (filter สถานะ/วันรับ, ดูสลิป, ยืนยัน/ปฏิเสธจากเว็บได้)
+- [x] 6.2 หน้าสินค้า: เพิ่ม/แก้ชื่อ ราคา หน่วย, ตั้งสต็อก, ประวัติสต็อก
+- [x] 6.3 หน้าตั้งค่าร้าน (เปิด/ปิด, พร้อมเพย์, พิกัด, ค่าส่ง), หน้าโปร+คูปอง, หน้าลูกค้า
+- [x] 6.4 หน้าสถานะบอท: event ล่าสุด, error ล่าสุด, log ทุก event (BotLog) + แจ้งเตือนบนแดชบอร์ด
 
 ---
 
@@ -67,3 +67,22 @@
 - DB dev/prod: **PostgreSQL บนเซิร์ฟเวอร์ Develyst** (`154.197.124.206:5432` จากเครื่อง dev / `localhost:5432` ตอนรันบน server) — db ชื่อ `wi_store`
 - โดเมน: **wi-store.develyst.online** → LINE webhook = `https://wi-store.develyst.online/api/line/webhook`
 - LINE secret/token + เบอร์ admin: ผู้ใช้วางให้ในแชท → ผมใส่ลง `.env` (ไม่ commit)
+
+---
+
+## ✅ สถานะ: ทำครบทุกข้อแล้ว (2026-09-19) — รอ deploy
+
+### สิ่งที่ทีม deploy ต้องทำ
+1. **Back** (`wi-store-back`) → PM2 port **4008** (Bun) — ดู `wi-store-back/README.md` สำหรับ env ทั้งหมด
+   - `DATABASE_URL` ใช้ `localhost:5432` db `wi_store` (สร้าง+migrate ไว้แล้ว) → รัน `bun run db:deploy` + `bun run db:generate`
+   - ตั้ง `PUBLIC_BASE_URL=https://wi-store.develyst.online`, ใส่ `ADMIN_PASSWORD` จริง, สุ่ม `ADMIN_API_KEY`
+   - ห้ามตั้ง `LINE_DRY_RUN` บน production
+   - โฟลเดอร์ `uploads/` ต้องเขียนได้ (เก็บสลิป)
+2. **Front** (`wi-store-front`) → `npm run build` (standalone) → PM2 port **3016**
+   - `NEXT_PUBLIC_API_URL=https://wi-store.develyst.online`, `NEXTAUTH_URL=https://wi-store.develyst.online`, `NEXTAUTH_SECRET` สุ่ม
+3. **nginx** `wi-store.develyst.online`: `/api/` → 4008, `/` → 3016 (**ยกเว้น `/api/auth/` ต้องไป 3016** เพราะเป็น NextAuth) + SSL
+4. **LINE Developers Console** → Webhook URL = `https://wi-store.develyst.online/api/line/webhook` → กด Verify → เปิด Use webhook; ใน LINE OA Manager ปิด Auto-reply / Greeting
+5. แม่เพิ่มเพื่อน OA → พิมพ์ `admin 0894481506` → เข้าเว็บไปเพิ่มสินค้า + ตั้งพร้อมเพย์/พิกัด/ค่าส่ง
+
+### ยังไม่ได้ทดสอบกับ LINE จริง
+ทดสอบผ่าน `LINE_DRY_RUN=1` + script จำลอง webhook ครบทุก flow แล้ว แต่ยังไม่ได้ยิงกับ LINE จริง (ไม่มี URL สาธารณะ) — หลัง deploy ให้ลองทัก OA จริง 1 รอบ: ลงทะเบียน → เมนู → สั่ง → สลิป → แม่ยืนยัน

@@ -26,7 +26,7 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     jwt({ token, user }) {
-      if (user) token.apiToken = (user as { apiToken: string }).apiToken;
+      if (user) token.apiToken = (user as unknown as { apiToken: string }).apiToken;
       return token;
     },
     session({ session, token }) {
